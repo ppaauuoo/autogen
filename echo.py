@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from autogen_core import AgentId, MessageContext, RoutedAgent, message_handler
 
 
-from autogen_core import AgentId, SingleThreadedAgentRuntime
-
+from autogen_core import SingleThreadedAgentRuntime
 import asyncio
 
 
