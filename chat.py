@@ -11,7 +11,6 @@ import asyncio
 from io import BytesIO
 
 import requests
-from autogen_agentchat.messages import MultiModalMessage
 from autogen_core import Image as AGImage
 from PIL import Image
 
@@ -21,7 +20,11 @@ class ImageAgent(RoutedAgent):
     async def on_image_message(
         self, message: MultiModalMessage, ctx: MessageContext
     ) -> TextMessage:
-        return TextMessage(content=f"Hello from image agent, {message.source}, you sent me {message}!", source="ImageAgent")
+        print(f"{self.id.type} received message")
+        return TextMessage(
+            content=f"Hello from image agent, {message.source}, you sent me {message}!",
+            source="ImageAgent",
+        )
 
 
 class MyAssistant(RoutedAgent):
@@ -45,16 +48,32 @@ class MyAssistant(RoutedAgent):
         print(f"{response.chat_message}")
 
     @message_handler(match=lambda msg, ctx: msg.source.startswith("img"))
-    async def on_image_message(self, message: TextMessage, ctx: MessageContext) -> None:
+    async def handle_image_message(
+        self, message: TextMessage, ctx: MessageContext
+    ) -> None:
         try:
+            print(f"{self.id.type} received message")
             response = requests.get(message.content)
             response.raise_for_status()
             pil_image = Image.open(BytesIO(response.content))
             img = AGImage(pil_image)
             multi_modal_message = MultiModalMessage(
-                content=[message.content, img], source="User"
+                content=[message.content, img], source="user"
             )
             response = await self.send_message(multi_modal_message, self.image_agent_id)
+            print(f"Hello from your agent, {message.source}, I got {response.content}!")
+        except requests.RequestException as e:
+            print(f"Error fetching image: {e}")
+        except Exception as e:
+            print(f"Error processing image: {e}")
+
+    @message_handler()
+    async def handle_multimodal_message(
+        self, message: MultiModalMessage, ctx: MessageContext
+    ) -> None:
+        try:
+            print(f"{self.id.type} received message")
+            response = await self.send_message(message, self.image_agent_id)
             print(f"Hello from your agent, {message.source}, I got {response.content}!")
         except requests.RequestException as e:
             print(f"Error fetching image: {e}")
@@ -90,6 +109,19 @@ async def main() -> None:
 
     await runtime.send_message(
         TextMessage(content="https://picsum.photos/300/200", source="img"),
+        AgentId("chat", "default"),
+    )
+
+    pil_image = Image.open(
+        BytesIO(requests.get("https://picsum.photos/300/200").content)
+    )
+    img = AGImage(pil_image)
+
+    await runtime.send_message(
+        MultiModalMessage(
+            content=["What is this image about", img],
+            source="user",
+        ),
         AgentId("chat", "default"),
     )
     await runtime.stop_when_idle()
